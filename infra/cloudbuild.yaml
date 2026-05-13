@@ -144,7 +144,7 @@ steps:
         SERVICE_URL=$(gcloud run services describe ${_BACKEND_SERVICE} \
           --region=${_REGION} --format='value(status.url)')
         STATUS=$(curl -s -o /dev/null -w "%{http_code}" $${SERVICE_URL}/health)
-        echo "Health check: ${STATUS} — ${SERVICE_URL}/health"
+        echo "Health check: $${STATUS} — $${SERVICE_URL}/health"
         [ "$${STATUS}" = "200" ] || (echo "Health check failed" && exit 1)
 
 images:
