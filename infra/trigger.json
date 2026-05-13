@@ -1,0 +1,17 @@
+{
+  "name": "statiq-deploy",
+  "description": "StatIQ CI/CD — deploy on push to main",
+  "github": {
+    "owner": "Senstat",
+    "name": "statiq",
+    "push": {
+      "branch": "^main$"
+    }
+  },
+  "filename": "infra/cloudbuild.yaml",
+  "substitutions": {
+    "_REGION": "europe-west1",
+    "_REDIS_HOST": "10.209.91.3",
+    "_VPC_CONNECTOR": "projects/llm-genai-480110/locations/europe-west1/connectors/statiq-connector"
+  }
+}
