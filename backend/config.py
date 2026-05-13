@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     max_file_size_mb: int = 100
 
+    # Security
+    api_key: str = ""                          # empty = auth disabled (local dev)
+    allowed_origins: str = "*"                 # comma-separated list or "*"
+    rate_limit_per_minute: int = 20            # analyze endpoint cap per IP
+
     # Langfuse (optional — observability)
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

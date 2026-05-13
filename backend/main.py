@@ -19,7 +19,7 @@ from typing import Any
 
 import structlog
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from google.cloud import storage
@@ -34,6 +34,7 @@ from backend.models.schemas import (
     DataSourceType,
     StreamEvent,
 )
+from backend.security import audit_log, check_pii_columns, require_api_key, require_rate_limit
 
 log = structlog.get_logger()
 settings = get_settings()
@@ -56,9 +57,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_origins = (
+    ["*"] if settings.allowed_origins == "*"
+    else [o.strip() for o in settings.allowed_origins.split(",")]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,8 +92,9 @@ async def health():
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 
-@app.post("/api/datasets/connect")
+@app.post("/api/datasets/connect", dependencies=[Depends(require_api_key)])
 async def connect_dataset(
+    request: Request,
     session_id: str = Form(default_factory=lambda: str(uuid.uuid4())),
     source: DataSourceType = Form(DataSourceType.BIGQUERY),
     dataset_ref: str = Form(
@@ -97,6 +103,7 @@ async def connect_dataset(
     ),
 ):
     """Connect to a BigQuery table or GCS CSV."""
+    audit_log(request, "dataset.connect", source=source.value, ref=dataset_ref, session=session_id)
     loader = _get_loader(session_id)
     try:
         if source == DataSourceType.BIGQUERY:
@@ -133,8 +140,9 @@ def _read_file_to_df(content: bytes, filename: str):
     return pd.read_csv(io.BytesIO(content))
 
 
-@app.post("/api/datasets/upload")
+@app.post("/api/datasets/upload", dependencies=[Depends(require_api_key)])
 async def upload_csv(
+    request: Request,
     file: UploadFile = File(...),
     session_id: str = Form(default_factory=lambda: str(uuid.uuid4())),
 ):
@@ -181,7 +189,19 @@ async def upload_csv(
     ctx = {"source": DataSourceType.CSV_UPLOAD.value, "ref": file.filename}
     await session_memory.set_dataset_context(session_id, ctx)
     profile = loader.profile()
-    return {"session_id": session_id, "gcs_object": gcs_object, "profile": profile.model_dump()}
+
+    # PII detection — warn but don't block (audited)
+    col_names = [c["name"] for c in profile.model_dump().get("columns", [])]
+    pii_cols = check_pii_columns(col_names)
+    if pii_cols:
+        audit_log(request, "pii.detected", file=file.filename, columns=pii_cols, session=session_id)
+        log.warning("pii.detected", file=file.filename, columns=pii_cols)
+
+    audit_log(request, "dataset.upload", file=file.filename, rows=profile.n_rows, session=session_id)
+    result = {"session_id": session_id, "gcs_object": gcs_object, "profile": profile.model_dump()}
+    if pii_cols:
+        result["pii_warning"] = f"Colonnes sensibles détectées : {', '.join(pii_cols)}. Vérifiez la conformité RGPD avant de partager cette analyse."
+    return result
 
 
 @app.get("/api/datasets/profile")
@@ -194,9 +214,10 @@ async def get_profile(session_id: str):
 
 # ── Analysis endpoints ────────────────────────────────────────────────────────
 
-@app.get("/api/analyze/stream")
-async def analyze_stream(session_id: str, question: str):
+@app.get("/api/analyze/stream", dependencies=[Depends(require_api_key), Depends(require_rate_limit)])
+async def analyze_stream(request: Request, session_id: str, question: str):
     """Server-Sent Events streaming endpoint."""
+    audit_log(request, "analyze.stream", session=session_id, question=question[:120])
     loader = _get_loader(session_id)
     if loader._source_type is None:
         raise HTTPException(404, "No dataset connected. Call /api/datasets/connect first.")
@@ -217,8 +238,8 @@ async def analyze_stream(session_id: str, question: str):
     )
 
 
-@app.post("/api/analyze")
-async def analyze(req: AnalyzeRequest):
+@app.post("/api/analyze", dependencies=[Depends(require_api_key), Depends(require_rate_limit)])
+async def analyze(request: Request, req: AnalyzeRequest):
     """Non-streaming analysis — collects all events and returns JSON."""
     session_id = req.session_id
 
