@@ -132,10 +132,12 @@ class ForecastAgent:
             raise ValueError("Pas assez de données pour une prévision (minimum 10 points).")
 
         # ── Model selection ───────────────────────────────────────────────────
+        # "auto" always uses Prophet: reliable, memory-safe (<512 MB), fast on CPU.
+        # Neural models (nhits/deepar) are available only when explicitly requested.
         neural_ok = (n >= NEURAL_ABS_MIN) and (n >= NEURAL_MIN_ROWS_RATIO * horizon_days)
 
         if model == "auto":
-            chosen = "nhits" if neural_ok else "prophet"
+            chosen = "prophet"
         elif model in ("nhits", "deepar") and not neural_ok:
             log.warning(
                 "forecast.fallback",
