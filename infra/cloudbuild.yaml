@@ -17,7 +17,7 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
+  machineType: E2_STANDARD_2
 
 steps:
   # ── 1. Run unit tests ────────────────────────────────────────────────────────
