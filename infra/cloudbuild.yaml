@@ -1,18 +1,25 @@
-# Cloud Build pipeline — triggered on push to main
+# Cloud Build pipeline — PRODUCTION branch
+#
+# Full cloud deployment with Redis (Cloud Memorystore), VPC connector,
+# API key auth, and complete secret management.
 #
 # Required substitutions (set in Cloud Build trigger):
 #   _REGION           = europe-west1
 #   _BACKEND_SERVICE  = statiq-backend
 #   _FRONTEND_SERVICE = statiq-frontend
-#   _GCS_BUCKET       = statiq-data-bucket
-#   _REDIS_HOST       = (Cloud Memorystore IP, e.g. 10.0.0.3)
+#   _REDIS_HOST       = 10.x.x.x  (Cloud Memorystore IP)
 #   _VPC_CONNECTOR    = projects/PROJECT_ID/locations/REGION/connectors/statiq-connector
+#
+# Required secrets in Secret Manager:
+#   anthropic-api-key, api-key, gcp-project-id, gcs-bucket-name,
+#   langfuse-public-key, langfuse-secret-key, langfuse-host
 
 substitutions:
   _REGION: europe-west1
   _BACKEND_SERVICE: statiq-backend
   _FRONTEND_SERVICE: statiq-frontend
   _REGISTRY: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/statiq
+  _REDIS_HOST: ""
   _VPC_CONNECTOR: ""
 
 options:
@@ -77,7 +84,7 @@ steps:
     waitFor: ["build-frontend"]
     args: ["push", "--all-tags", "${_REGISTRY}/frontend"]
 
-  # ── 5. Deploy backend to Cloud Run ──────────────────────────────────────────
+  # ── 5. Deploy backend to Cloud Run (full config) ─────────────────────────────
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     id: deploy-backend
     waitFor: ["push-backend"]
@@ -102,6 +109,7 @@ steps:
           --timeout=300 \
           --set-env-vars=APP_ENV=production,REDIS_HOST=${_REDIS_HOST},REDIS_PORT=6379 \
           --set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest \
+          --set-secrets=API_KEY=api-key:latest \
           --set-secrets=GCP_PROJECT_ID=gcp-project-id:latest \
           --set-secrets=GCS_BUCKET_NAME=gcs-bucket-name:latest \
           --set-secrets=LANGFUSE_PUBLIC_KEY=langfuse-public-key:latest \
@@ -120,6 +128,7 @@ steps:
       - |
         BACKEND_URL=$(gcloud run services describe ${_BACKEND_SERVICE} \
           --region=${_REGION} --format='value(status.url)')
+        API_KEY=$(gcloud secrets versions access latest --secret=api-key)
         gcloud run deploy ${_FRONTEND_SERVICE} \
           --image=${_REGISTRY}/frontend:${SHORT_SHA} \
           --region=${_REGION} \
@@ -130,7 +139,7 @@ steps:
           --concurrency=50 \
           --min-instances=0 \
           --max-instances=5 \
-          --set-env-vars=BACKEND_URL=$${BACKEND_URL}
+          --set-env-vars=BACKEND_URL=$${BACKEND_URL},API_KEY=$${API_KEY}
 
   # ── 7. Smoke test ────────────────────────────────────────────────────────────
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
