@@ -12,6 +12,10 @@
 
 ---
 
+![StatIQ Demo](assets/demo.gif)
+
+---
+
 ## Overview
 
 StatIQ is a production-grade multi-agent analytics platform that lets non-technical stakeholders explore data through natural language. A LangGraph-orchestrated agent selects the right analytical tool (SQL, statistics, visualization, forecasting) based on the question, streams the result in real time, and narrates the findings in plain French or English.
