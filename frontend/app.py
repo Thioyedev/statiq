@@ -455,33 +455,123 @@ def _build_report_pdf(question: str, narrative: str, chart_json: str | None, dat
     story.append(Paragraph(question, sQ))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#E2E8F0"), spaceAfter=12))
 
-    # Narrative
-    for line in narrative.split("\n"):
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors as rl_colors
+
+    def _fmt(text: str) -> str:
+        """Apply inline markdown to a string for ReportLab Paragraph."""
+        t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+        t = re.sub(r"__(.+?)__",     r"<b>\1</b>", t)
+        t = re.sub(r"\*(.+?)\*",     r"<i>\1</i>", t)
+        t = re.sub(r"_(.+?)_",       r"<i>\1</i>", t)
+        t = re.sub(r"`(.+?)`",       r"<font name='Courier'>\1</font>", t)
+        return t
+
+    def _parse_md_table(lines: list[str]) -> list[list[str]]:
+        """Parse markdown table lines into a list of rows."""
+        rows = []
+        for ln in lines:
+            ln = ln.strip()
+            if re.match(r"^\|[-:| ]+\|$", ln):
+                continue  # separator row
+            cells = [c.strip() for c in ln.strip("|").split("|")]
+            rows.append(cells)
+        return rows
+
+    def _md_table_flowable(rows: list[list[str]]):
+        """Convert parsed markdown table rows to a styled ReportLab Table."""
+        col_count = max(len(r) for r in rows)
+        available = 16.6 * cm
+        col_w = available / col_count
+
+        data = []
+        for row in rows:
+            # pad short rows
+            padded = row + [""] * (col_count - len(row))
+            data.append([Paragraph(_fmt(c), sBody) for c in padded])
+
+        tbl = Table(data, colWidths=[col_w] * col_count, repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND",   (0, 0), (-1, 0),  colors.HexColor("#EFF6FF")),
+            ("TEXTCOLOR",    (0, 0), (-1, 0),  navy),
+            ("FONTNAME",     (0, 0), (-1, 0),  "Helvetica-Bold"),
+            ("FONTSIZE",     (0, 0), (-1, -1), 9),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+            ("GRID",         (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",   (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING",(0, 0), (-1, -1), 5),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        return tbl
+
+    # Narrative — collect table blocks, then emit
+    lines = narrative.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         s = line.strip()
+
+        # Skip empty
         if not s:
             story.append(Spacer(1, 0.15*cm))
+            i += 1
             continue
-        s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
-        s = re.sub(r"\*(.+?)\*",     r"<i>\1</i>", s)
-        s = re.sub(r"`(.+?)`",       r"<font name='Courier'>\1</font>", s)
+
+        # Skip bare `---` separators
+        if re.match(r"^-{3,}$", s):
+            i += 1
+            continue
+
+        # Markdown table block — collect all consecutive table lines
+        if s.startswith("|"):
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                table_lines.append(lines[i])
+                i += 1
+            rows = _parse_md_table(table_lines)
+            if rows:
+                story.append(Spacer(1, 0.2*cm))
+                story.append(_md_table_flowable(rows))
+                story.append(Spacer(1, 0.3*cm))
+            continue
+
+        # Headings
         if line.startswith("# "):
-            story.append(Paragraph(s[2:], sH1))
+            story.append(Paragraph(_fmt(s[2:]), sH1))
         elif line.startswith("## "):
-            story.append(Paragraph(s[3:], sH2))
+            story.append(Paragraph(_fmt(s[3:]), sH2))
         elif line.startswith("### "):
-            story.append(Paragraph(s[4:], sH3))
-        elif re.match(r"^[-*] ", line):
-            story.append(Paragraph(f"• {s[2:]}", sBullet))
+            story.append(Paragraph(_fmt(s[4:]), sH3))
+        # Numbered list
+        elif re.match(r"^\d+\.\s", s):
+            story.append(Paragraph(_fmt(s), sBullet))
+        # Bullet list
+        elif re.match(r"^[-*>] ", s):
+            story.append(Paragraph(f"• {_fmt(s[2:])}", sBullet))
+        # Normal paragraph
         else:
-            story.append(Paragraph(s, sBody))
+            story.append(Paragraph(_fmt(s), sBody))
+        i += 1
 
     # Chart
     if chart_json:
         try:
             import plotly.io as _pio
             fig = _pio.from_json(chart_json)
-            fig.update_layout(paper_bgcolor="white", plot_bgcolor="white",
-                              font_color="#0F172A", margin=dict(t=40, b=40, l=20, r=20))
+            # Wrap long titles and use light theme for print
+            current_title = (fig.layout.title.text or "") if fig.layout.title else ""
+            if len(current_title) > 60:
+                current_title = current_title[:57] + "…"
+            fig.update_layout(
+                paper_bgcolor="white",
+                plot_bgcolor="#F8FAFC",
+                font_color="#0F172A",
+                title_text=current_title,
+                title_font_size=13,
+                margin=dict(t=50, b=50, l=40, r=40),
+            )
             img_bytes = fig.to_image(format="png", width=800, height=440, scale=2)
             story.append(Spacer(1, 0.5*cm))
             story.append(Image(BytesIO(img_bytes), width=16.6*cm, height=9.1*cm))
@@ -568,7 +658,9 @@ with st.sidebar:
     st.divider()
     st.markdown('<div class="section-label">Source de données</div>', unsafe_allow_html=True)
 
-    source_tab = st.radio("Type de source", ["Données GCP", "Importer un fichier"], horizontal=True, label_visibility="collapsed")
+    _is_local = "localhost" in BACKEND_URL or "127.0.0.1" in BACKEND_URL
+    _source_options = ["Importer un fichier"] if _is_local else ["Données GCP", "Importer un fichier"]
+    source_tab = st.radio("Type de source", _source_options, horizontal=True, label_visibility="collapsed")
 
     if source_tab == "Données GCP":
         catalog = get_catalog()

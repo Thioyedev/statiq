@@ -1,12 +1,18 @@
+import os
 from functools import lru_cache
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv(override=True)  # override shell env vars with .env values
+# Load .env.local first (local dev), then .env (production/fallback).
+# Values in .env.local take precedence.
+load_dotenv(".env.local", override=False)
+load_dotenv(".env", override=False)
+
+_env_files = (".env.local", ".env") if os.path.exists(".env.local") else (".env",)
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_env_files, env_file_encoding="utf-8", extra="ignore")
 
     # Anthropic
     anthropic_api_key: str
