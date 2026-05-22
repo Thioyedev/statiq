@@ -1,0 +1,75 @@
+# Hetzner VPS deployment — differs from Cloud Run in:
+#   - Images pulled from GHCR (not GCR)
+#   - Redis runs as a sidecar (no Cloud Memorystore)
+#   - Caddy handles TLS termination and reverse proxy
+#   - Secrets loaded from .env file on the server
+
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    image: ghcr.io/senstat/statiq-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    image: ghcr.io/senstat/statiq-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - STATIQ_DOMAIN=${STATIQ_DOMAIN:-http://65.109.143.85}
+    volumes:
+      - ./infra/hetzner/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  default:
+    name: statiq-hetzner

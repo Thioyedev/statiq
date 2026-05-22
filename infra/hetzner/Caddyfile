@@ -1,0 +1,23 @@
+# Statiq reverse proxy — Hetzner deployment
+#
+# STATIQ_DOMAIN controls TLS behaviour (set in .env on the server):
+#
+#   STATIQ_DOMAIN=statiq.example.com      → automatic HTTPS via Let's Encrypt
+#   STATIQ_DOMAIN=http://65.109.143.85    → plain HTTP (no TLS, IP-based)
+#   unset                                 → same as the IP default above
+#
+# Caddy cannot issue TLS certificates for bare IP addresses.
+# Add a domain pointing to 65.109.143.85 to enable HTTPS.
+
+{$STATIQ_DOMAIN:http://65.109.143.85} {
+    # Streamlit frontend
+    reverse_proxy frontend:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+# Backend API — reachable on :8081 for ops/health checks from the host
+:8081 {
+    reverse_proxy backend:8080
+}
