@@ -11,11 +11,9 @@ Endpoints:
   GET  /health                 → liveness probe
 """
 from __future__ import annotations
-import json
 import uuid
 from collections import OrderedDict
 from contextlib import asynccontextmanager
-from typing import Any
 
 import structlog
 import uvicorn
@@ -32,7 +30,6 @@ from backend.observability.langfuse_client import flush as langfuse_flush
 from backend.models.schemas import (
     AnalyzeRequest,
     DataSourceType,
-    StreamEvent,
 )
 from backend.security import audit_log, check_pii_columns, require_api_key, require_rate_limit
 
@@ -98,7 +95,7 @@ async def connect_dataset(
     session_id: str = Form(default_factory=lambda: str(uuid.uuid4())),
     source: DataSourceType = Form(DataSourceType.BIGQUERY),
     dataset_ref: str = Form(
-        default=f"bigquery-public-data.chicago_taxi_trips.taxi_trips",
+        default="bigquery-public-data.chicago_taxi_trips.taxi_trips",
         description="Fully-qualified BigQuery table or GCS object path",
     ),
 ):
@@ -166,7 +163,6 @@ async def upload_csv(
     except Exception as exc:
         log.warning("gcs.upload_failed", error=str(exc))
         # Fallback: load directly into DuckDB without GCS
-        import pandas as pd
         loader = _get_loader(session_id)
         df = _read_file_to_df(content, file.filename)
         loader.duck.register("df", df)
@@ -177,7 +173,6 @@ async def upload_csv(
         loader = _get_loader(session_id)
         # For Excel files, convert to in-memory DataFrame (GCS path is CSV-only)
         if ext in (".xlsx", ".xls"):
-            import pandas as pd
             df = _read_file_to_df(content, file.filename)
             loader.duck.register("df", df)
             loader._loaded_table = "df"
