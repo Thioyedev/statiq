@@ -1,6 +1,5 @@
 """VizAgent — generates interactive Plotly charts from SQL data."""
 from __future__ import annotations
-import json
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio

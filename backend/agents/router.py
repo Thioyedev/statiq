@@ -43,7 +43,6 @@ from backend.config import get_settings
 from backend.memory.session import session_memory
 from backend.observability.langfuse_client import create_callback
 from backend.models.schemas import (
-    AgentStep,
     AgentType,
     ForecastResult,
     SQLResult,

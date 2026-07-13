@@ -1,6 +1,5 @@
 """SQLAgent — executes SQL queries via DataLoader and returns structured results."""
 from __future__ import annotations
-import hashlib
 import structlog
 from backend.agents.base import DataLoader
 from backend.models.schemas import SQLResult

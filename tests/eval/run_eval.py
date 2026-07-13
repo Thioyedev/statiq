@@ -21,7 +21,7 @@ import pytest
 from backend.agents.base import DataLoader
 from backend.agents.router import RouterAgent
 from backend.eval.judge import AnalysisTrace, LLMJudge, ToolCall
-from backend.models.schemas import DataSourceType, StreamEvent
+from backend.models.schemas import DataSourceType
 from backend.observability.langfuse_client import log_eval_scores
 
 
