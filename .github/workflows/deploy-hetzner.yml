@@ -63,6 +63,7 @@ jobs:
           context: .
           file: Dockerfile.backend
           push: true
+          provenance: false
           tags: |
             ${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
             ${{ env.BACKEND_IMAGE }}:latest
@@ -73,6 +74,7 @@ jobs:
           context: .
           file: Dockerfile.frontend
           push: true
+          provenance: false
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }}
             ${{ env.FRONTEND_IMAGE }}:latest
