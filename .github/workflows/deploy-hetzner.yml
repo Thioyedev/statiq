@@ -84,20 +84,31 @@ jobs:
     runs-on: ubuntu-latest
     environment: hetzner
     steps:
-      - name: Deploy via SSH
+      - name: Pull images on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 60m
+          script: |
+            set -e
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            IMAGE_TAG=${{ needs.build-push.outputs.tag }} \
+              docker compose -f /opt/statiq/docker-compose.hetzner.yml pull
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 10m
           script: |
             set -e
             cd /opt/statiq
             git fetch origin deploy/hetzner
             git reset --hard origin/deploy/hetzner
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
-            IMAGE_TAG=${{ needs.build-push.outputs.tag }} \
-              docker compose -f docker-compose.hetzner.yml pull
             IMAGE_TAG=${{ needs.build-push.outputs.tag }} \
               docker compose -f docker-compose.hetzner.yml up -d --remove-orphans
             docker image prune -f
@@ -108,8 +119,9 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 5m
           script: |
-            sleep 15
+            sleep 30
             STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/health || echo "000")
             echo "Backend health: $STATUS"
             [ "$STATUS" = "200" ] || (echo "Health check failed" && exit 1)
