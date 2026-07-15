@@ -20,7 +20,7 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/senstat/statiq-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/thioyedev/statiq-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -40,7 +40,7 @@ services:
       retries: 5
 
   frontend:
-    image: ghcr.io/senstat/statiq-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io/thioyedev/statiq-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       - BACKEND_URL=http://backend:8080
