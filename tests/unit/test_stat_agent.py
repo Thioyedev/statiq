@@ -2,7 +2,6 @@
 import pandas as pd
 import numpy as np
 import pytest
-import duckdb
 
 from backend.agents.base import DataLoader
 from backend.agents.stat_agent import StatAgent

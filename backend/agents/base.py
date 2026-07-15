@@ -3,7 +3,6 @@ DataLoader : abstraction over BigQuery & DuckDB (local CSV).
 All agents go through this to get a pandas DataFrame or run SQL.
 """
 from __future__ import annotations
-import hashlib
 import time
 import duckdb
 import pandas as pd
