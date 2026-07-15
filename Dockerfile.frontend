@@ -5,8 +5,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir ".[frontend]"
+RUN pip install --no-cache-dir \
+    streamlit>=1.35.0 \
+    streamlit-extras>=0.4.0 \
+    plotly>=5.22.0 \
+    requests>=2.32.0
 
 COPY frontend/ ./frontend/
 
