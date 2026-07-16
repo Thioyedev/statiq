@@ -1,7 +1,7 @@
 # Hetzner VPS deployment — differs from Cloud Run in:
 #   - Images pulled from GHCR (not GCR)
 #   - Redis runs as a sidecar (no Cloud Memorystore)
-#   - Caddy handles TLS termination and reverse proxy
+#   - Frontend on :8501, backend API on :8081 (ports 80/443 used by SenStat)
 #   - Secrets loaded from .env file on the server
 
 version: "3.9"
@@ -28,6 +28,8 @@ services:
       - REDIS_PORT=6379
       - APP_ENV=production
       - LOG_LEVEL=INFO
+    ports:
+      - "8081:8080"
     volumes:
       - ./credentials:/app/credentials:ro
     depends_on:
@@ -43,33 +45,16 @@ services:
   frontend:
     image: ghcr.io/thioyedev/statiq-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    ports:
+      - "8501:8080"
     environment:
       - BACKEND_URL=http://backend:8080
     depends_on:
       backend:
         condition: service_healthy
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      - STATIQ_DOMAIN=${STATIQ_DOMAIN:-http://65.109.143.85}
-    volumes:
-      - ./infra/hetzner/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
-      - backend
-
 volumes:
   redis_data:
-  caddy_data:
-  caddy_config:
 
 networks:
   default:
