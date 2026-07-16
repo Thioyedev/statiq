@@ -4,8 +4,6 @@
 #   - Frontend on :8501, backend API on :8081 (ports 80/443 used by SenStat)
 #   - Secrets loaded from .env file on the server
 
-version: "3.9"
-
 services:
   redis:
     image: redis:7-alpine
