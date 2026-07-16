@@ -7,7 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY pyproject.toml .
+
+# Install CPU-only torch first so neuralforecast/prophet don't pull CUDA (~2GB saved)
 RUN pip install --upgrade pip \
+    && pip install --no-cache-dir \
+        torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir "." \
     && pip install --no-cache-dir "uvicorn[standard]"
 
@@ -27,11 +31,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy source
 COPY backend/ ./backend/
 
-# Non-root user (security best practice for Cloud Run)
 RUN useradd -m -u 1000 appuser && chown -R appuser /app
 USER appuser
 
 EXPOSE 8080
 
-# Cloud Run injects PORT env var; fall back to 8080
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
