@@ -41,7 +41,6 @@ dependencies = [
   "kaleido>=0.2.1",
   # Forecast
   "prophet>=1.1.5",
-  "neuralforecast>=1.7.0",
   # GCP
   "google-cloud-bigquery>=3.23.0",
   "google-cloud-storage>=2.17.0",

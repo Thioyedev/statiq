@@ -8,10 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY pyproject.toml .
 
-# Install CPU-only torch first so neuralforecast/prophet don't pull CUDA (~2GB saved)
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir \
-        torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir "." \
     && pip install --no-cache-dir "uvicorn[standard]"
 
