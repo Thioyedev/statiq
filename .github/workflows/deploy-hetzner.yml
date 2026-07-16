@@ -109,7 +109,9 @@ jobs:
             cd /opt/statiq
             git fetch origin deploy/hetzner
             git reset --hard origin/deploy/hetzner
-            docker compose -f docker-compose.hetzner.yml down --remove-orphans || true
+            docker compose -f docker-compose.hetzner.yml down --remove-orphans --timeout 30 || true
+            docker ps -q --filter publish=8501 | xargs -r docker stop | xargs -r docker rm || true
+            docker ps -q --filter publish=8081 | xargs -r docker stop | xargs -r docker rm || true
             IMAGE_TAG=${{ needs.build-push.outputs.tag }} \
               docker compose -f docker-compose.hetzner.yml up -d
             docker image prune -f
