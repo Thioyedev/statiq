@@ -83,6 +83,13 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     environment: hetzner
+    # Serialize deploys: the steps below tear down containers and free ports
+    # 8501/8081, so two concurrent runs can kill each other's containers.
+    # cancel-in-progress stays false so a deploy is never interrupted midway
+    # between `compose down` and `compose up`.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - name: Pull images on server
         uses: appleboy/ssh-action@v1.0.3

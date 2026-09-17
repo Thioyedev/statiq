@@ -83,6 +83,11 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     environment: hetzner-staging
+    # Separate group from production: staging uses ports 8502/8082 and its own
+    # compose project, so the two stacks can safely deploy at the same time.
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
     steps:
       - name: Pull images on server
         uses: appleboy/ssh-action@v1.0.3
