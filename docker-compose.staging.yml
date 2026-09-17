@@ -1,0 +1,60 @@
+# Hetzner VPS — staging environment
+# Runs alongside production on different host ports:
+#   frontend  → :8502   (production: 8501)
+#   backend   → :8082   (production: 8081)
+# Uses isolated volumes and network so it never touches production data.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data_staging:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    image: ghcr.io/thioyedev/statiq-backend:${IMAGE_TAG:-staging-latest}
+    restart: unless-stopped
+    env_file: .env.staging
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - APP_ENV=staging
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+  frontend:
+    image: ghcr.io/thioyedev/statiq-frontend:${IMAGE_TAG:-staging-latest}
+    restart: unless-stopped
+    ports:
+      - "8502:8080"
+    environment:
+      - BACKEND_URL=http://backend:8080
+      - API_KEY=${API_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  redis_data_staging:
+
+networks:
+  default:
+    name: statiq-staging

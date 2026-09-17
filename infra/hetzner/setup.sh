@@ -63,7 +63,14 @@ echo "==> Configuring firewall..."
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
+ufw allow 8081/tcp   # Statiq backend API (production)
+ufw allow 8082/tcp   # Statiq backend API (staging)
+ufw allow 8501/tcp   # Statiq frontend (production)
+ufw allow 8502/tcp   # Statiq frontend (staging)
 ufw --force enable
+
+echo "==> Installing Redis backup cron..."
+bash "$DEPLOY_DIR/infra/hetzner/setup-backup-cron.sh"
 
 chown -R "$DEPLOY_USER:$DEPLOY_USER" "$DEPLOY_DIR"
 
@@ -73,7 +80,7 @@ echo ""
 echo "Next steps:"
 echo "  1. Fill in secrets:          nano $DEPLOY_DIR/.env"
 echo "  2. Place GCP SA key:         $DEPLOY_DIR/credentials/sa-key.json"
-echo "  3. Set STATIQ_DOMAIN in .env (optional, for HTTPS)"
+echo "  3. Set STATIQ_DOMAIN in .env (optional, for HTTPS via Caddy)"
 echo "  4. Start services:"
 echo "       cd $DEPLOY_DIR && docker compose -f docker-compose.hetzner.yml up -d"
 echo ""
@@ -84,5 +91,6 @@ echo "  HETZNER_SSH_KEY = (your private SSH key for this server)"
 echo "  GHCR_TOKEN      = (GitHub PAT with read:packages scope)"
 echo "  GHCR_USER       = (your GitHub username/org)"
 echo ""
-echo "GitHub Actions environment to create:"
-echo "  Name: hetzner  (Settings → Environments)"
+echo "GitHub Actions environments to create (Settings → Environments):"
+echo "  hetzner          — production (deploy/hetzner branch)"
+echo "  hetzner-staging  — staging    (staging/hetzner branch)"
