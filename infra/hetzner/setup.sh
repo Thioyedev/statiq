@@ -56,6 +56,14 @@ if [ ! -f "$DEPLOY_DIR/.env" ]; then
   echo "STATIQ_DOMAIN=" >> "$DEPLOY_DIR/.env"
 fi
 
+echo "==> Creating .env.staging from example..."
+if [ ! -f "$DEPLOY_DIR/.env.staging" ]; then
+  cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env.staging"
+  sed -i 's/APP_ENV=development/APP_ENV=staging/' "$DEPLOY_DIR/.env.staging"
+  sed -i 's/REDIS_HOST=localhost/REDIS_HOST=redis/' "$DEPLOY_DIR/.env.staging"
+fi
+chmod 600 "$DEPLOY_DIR/.env" "$DEPLOY_DIR/.env.staging"
+
 echo "==> Creating credentials directory..."
 mkdir -p "$DEPLOY_DIR/credentials"
 
@@ -79,10 +87,13 @@ echo "Setup complete!"
 echo ""
 echo "Next steps:"
 echo "  1. Fill in secrets:          nano $DEPLOY_DIR/.env"
-echo "  2. Place GCP SA key:         $DEPLOY_DIR/credentials/sa-key.json"
-echo "  3. Set STATIQ_DOMAIN in .env (optional, for HTTPS via Caddy)"
-echo "  4. Start services:"
+echo "  2. Fill in staging secrets:  nano $DEPLOY_DIR/.env.staging"
+echo "  3. Place GCP SA key:         $DEPLOY_DIR/credentials/sa-key.json"
+echo "  4. Set STATIQ_DOMAIN in .env (optional, for HTTPS via Caddy)"
+echo "  5. Start services:"
 echo "       cd $DEPLOY_DIR && docker compose -f docker-compose.hetzner.yml up -d"
+echo "     Staging (optional, ports 8502/8082):"
+echo "       cd $DEPLOY_DIR && docker compose -f docker-compose.staging.yml up -d"
 echo ""
 echo "GitHub Actions secrets to add (Settings → Secrets → Actions):"
 echo "  HETZNER_HOST    = $(hostname -I | awk '{print $1}')"

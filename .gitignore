@@ -14,7 +14,8 @@ htmlcov/
 
 # Secrets — NEVER commit
 .env
-.env.local
+.env.*
+!.env.example
 credentials/
 *.json.key
 sa-key.json
