@@ -98,7 +98,6 @@ jobs:
           command_timeout: 60m
           script: |
             set -e
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             IMAGE_TAG=${{ needs.build-push.outputs.tag }} \
               docker compose -f /opt/statiq/docker-compose.staging.yml pull
 
