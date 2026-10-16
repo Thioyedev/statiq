@@ -199,6 +199,10 @@ class RouterAgent:
         prior_messages = self._history_to_messages(history)
         messages = prior_messages + [HumanMessage(content=question)]
 
+        # Store the question before streaming: a mid-stream failure must not
+        # drop the user's turn from the transcript.
+        await session_memory.append_history(session_id, "user", question)
+
         input_state: StatIQState = {
             "messages": messages,
             "dataset_context": dataset_context,
@@ -239,11 +243,13 @@ class RouterAgent:
         except Exception as exc:
             log.error("router.stream_error", error=str(exc))
             user_msg = _friendly_error(exc)
+            # The question is already stored, so record the failure as its
+            # answer rather than leaving a user turn with no reply.
+            await session_memory.append_history(session_id, "assistant", user_msg)
             yield StreamEvent(event="error", data=user_msg)
             return
 
         # ── Persist to Redis ──────────────────────────────────────────────────
-        await session_memory.append_history(session_id, "user", question)
         await session_memory.append_history(
             session_id, "assistant", "".join(accumulated_text)
         )
