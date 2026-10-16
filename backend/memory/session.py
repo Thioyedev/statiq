@@ -11,6 +11,8 @@ from backend.config import get_settings
 log = structlog.get_logger()
 settings = get_settings()
 
+MAX_HISTORY = 20
+
 
 class SessionMemory:
     """Manages per-session state in Redis, with in-memory fallback."""
@@ -19,6 +21,7 @@ class SessionMemory:
         self._client: aioredis.Redis | None = None
         self._redis_ok: bool | None = None  # None = untested
         self._store: dict[str, str] = {}    # in-memory fallback
+        self._history: dict[str, list[dict]] = {}
 
     async def _get_client(self) -> aioredis.Redis | None:
         if self._redis_ok is False:
@@ -65,25 +68,35 @@ class SessionMemory:
     # ── Conversation history ──────────────────────────────────────────────────
 
     async def get_history(self, session_id: str) -> list[dict]:
-        raw = await self._get(f"session:{session_id}:history")
-        if raw is None:
-            return []
-        return json.loads(raw)
+        key = f"session:{session_id}:messages"
+        client = await self._get_client()
+        if client:
+            return [json.loads(item) for item in await client.lrange(key, 0, -1)]
+        return list(self._history.get(key, []))
 
     async def append_history(
         self, session_id: str, role: str, content: str | list
     ) -> None:
-        history = await self.get_history(session_id)
-        history.append({"role": role, "content": content})
-        history = history[-20:]
-        await self._setex(
-            f"session:{session_id}:history",
-            settings.redis_ttl_seconds,
-            json.dumps(history),
-        )
+        key = f"session:{session_id}:messages"
+        message = {"role": role, "content": content}
+        client = await self._get_client()
+        if client:
+            # One MULTI: no read-modify-write window for a concurrent append to
+            # overwrite, and the trim happens server-side.
+            pipe = client.pipeline()
+            pipe.rpush(key, json.dumps(message))
+            pipe.ltrim(key, -MAX_HISTORY, -1)
+            pipe.expire(key, settings.redis_ttl_seconds)
+            await pipe.execute()
+        else:
+            history = self._history.setdefault(key, [])
+            history.append(message)
+            del history[:-MAX_HISTORY]
 
     async def clear_history(self, session_id: str) -> None:
-        await self._delete(f"session:{session_id}:history")
+        key = f"session:{session_id}:messages"
+        await self._delete(key)
+        self._history.pop(key, None)
 
     # ── Dataset context ───────────────────────────────────────────────────────
 
